@@ -28,18 +28,45 @@ type Cluster struct {
 	R     int
 }
 
+// 同步写入到指定节点
+func (n *Node) syncWrite(key string, item DataItem) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.Data[key] = item
+	n.Version[key] = item.Version
+	return true
+}
+
+// 异步同步剩余节点
+func (c *Cluster) asyncSync(key string, item DataItem, successChan chan<- int) {
+	var wg sync.WaitGroup
+	for _, node := range c.Nodes {
+		wg.Add(1)
+		go func(n *Node) {
+			defer wg.Done()
+			if n.syncWrite(key, item) {
+				successChan <- 1
+			}
+		}(node)
+	}
+	wg.Wait()
+	close(successChan)
+}
+
 // 写入数据：需满足写入W个副本成功
 func (c *Cluster) Write(key string, value string) bool {
 	version := time.Now().UnixNano()
+	item := DataItem{
+		Key:     key,
+		Value:   value,
+		Version: version,
+	}
 
+	// 第一阶段：同步写入W个节点
 	success := 0
 	for _, node := range c.Nodes {
 		node.mu.Lock()
-		node.Data[key] = DataItem{
-			Key:     key,
-			Value:   value,
-			Version: version,
-		}
+		node.Data[key] = item
 		node.Version[key] = version
 		node.mu.Unlock()
 		success++
@@ -49,7 +76,12 @@ func (c *Cluster) Write(key string, value string) bool {
 		}
 	}
 
-	return success >= c.W
+	// 第二阶段：异步写入剩余N-W个节点
+	successChan := make(chan int, c.N-c.W)
+	go c.asyncSync(key, item, successChan)
+
+	// 可以立即返回，不用等待异步同步节点完成
+	return true
 }
 
 // 读取数据：需满足查询R个副本，并返回最新数据

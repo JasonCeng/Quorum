@@ -34,9 +34,9 @@ func main() {
 
 	// 测试写入
 	success := cluster.Write("name", "zengzc")
-	fmt.Println("Write success: ", success)
+	fmt.Println("Write success:", success)
 
 	// 测试读取
-	value, success := cluster.Read("name")
-	fmt.Println("Read success: ", success, " value: ", value)
+	value, exists := cluster.Read("name")
+	fmt.Println("Read exists:", exists, " value:", value)
 }
