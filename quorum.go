@@ -74,9 +74,9 @@ func (c *Cluster) Read(key string) (string, bool) {
 
 	//选取最大版本号的数据
 	latest := result[0]
-	for _, itme := range result[1:] {
-		if itme.Version > latest.Version {
-			latest = itme
+	for _, item := range result[1:] {
+		if item.Version > latest.Version {
+			latest = item
 		}
 	}
 	return latest.Value, true
